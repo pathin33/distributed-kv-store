@@ -1,0 +1,34 @@
+syntax = "proto3"; 
+
+message PutRequest {
+  string key = 1;
+  string value = 2;
+  bool is_replica = 3; //Trường đánh dấu xem dữ liệu có phải bản sao ko
+}
+
+message PutResponse {
+  bool success = 1;
+  string message = 2;
+  
+}
+message GetRequest{
+    string key = 1;
+}
+message GetResponse{
+    bool success = 1;
+    string message = 2;
+    string value = 3;
+}
+message DeleteRequest{
+    string key = 1;
+}
+message DeleteResponse{
+    bool success = 1;
+    string message = 2;
+}
+
+service KeyValueService {
+  rpc Put (PutRequest) returns (PutResponse);
+  rpc Get (GetRequest) returns (GetResponse);
+  rpc Delete (DeleteRequest) returns (DeleteResponse);
+}

@@ -1,0 +1,7 @@
+document.md
+SystemDiagram.md
+#bỏ các file do python sinh ra
+src/generated/__pycache__/
+*.pyc
+*.pyo
+*.cpython-*
