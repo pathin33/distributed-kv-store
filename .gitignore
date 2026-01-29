@@ -5,3 +5,4 @@ src/generated/__pycache__/
 *.pyc
 *.pyo
 *.cpython-*
+src/service/__pycache__/

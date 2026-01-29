@@ -2,46 +2,9 @@ import grpc
 from concurrent import futures
 import argparse
 import json
+from service.keyvalue import KeyValueServicer
 import generated.kvstore_pb2_grpc as kvstore_pb2_grpc
-import generated.kvstore_pb2  as kvstore_pb2
-
-class KeyValueServicer(kvstore_pb2_grpc.KeyValueServiceServicer):
-    def __init__(self):
-        #Tạo ra 1 dict để lưu trữ các key
-        self.db = {}
-    
-    def Put(self, request, context):
-        #khi lưu trữ dữ liệu từ req cho vào db
-        self.db[request.key] = request.value
-        return kvstore_pb2.PutResponse(success = True,message = "Đã lưu!")
-    
-    def Get(self, request, context):
-        if request.key in self.db :
-            value = self.db[request.key]
-            return kvstore_pb2.GetResponse(
-                success = True ,
-                message = "Lấy dữ liệu thành công",    
-                value = value
-            )
-        else:
-            return kvstore_pb2.GetResponse(
-                success = False,
-                message = "Dữ liệu không tồn tại",
-                value = ""
-            )
-    def Delete(self, request, context):
-        if request.key in self.db:
-            del self.db[request.key]
-            return kvstore_pb2.DeleteResponse(
-                success = True,
-                message = "Xóa thành công"
-            )
-        else:
-            return kvstore_pb2.DeleteResponse(
-                success = False,
-                message ="Xóa không thành công"
-            )
-
+from chord.chordnode import ChordNode
 def serve():
     # đọc tham số từ dòng lệnh
     parser = argparse.ArgumentParser(description="Khởi chạy node gRPC")
@@ -79,7 +42,7 @@ def serve():
     )
     #Đăng kí các service với server
     kvstore_pb2_grpc.add_KeyValueServiceServicer_to_server(
-        KeyValueServicer(),
+        KeyValueServicer,
         server
     )
 
