@@ -28,7 +28,12 @@ def serve():
         if node["id"] == args.id:
             my_info = node
             break
-
+    # Khởi tạo đối tượng chord node để xử lí các hàm service
+    chord_node = ChordNode(
+        node_id=my_info["id"],
+        address=my_info["address"],
+        all_nodes_config=config["nodes"]  # ← Truyền toàn bộ các node ở config vào
+    )
     if my_info is None:
         raise ValueError(
             f"Không tìm thấy node có id = {args.id} trong config.json"
@@ -42,7 +47,7 @@ def serve():
     )
     #Đăng kí các service với server
     kvstore_pb2_grpc.add_KeyValueServiceServicer_to_server(
-        KeyValueServicer,
+        KeyValueServicer(chord_node),
         server
     )
 
