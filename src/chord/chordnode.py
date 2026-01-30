@@ -15,8 +15,6 @@ def in_range(x, a, b):
 
 
 class ChordNode:
-    
-
     def __init__(self, name):
         self.name = name
         self.id = get_hash(name)
@@ -29,51 +27,7 @@ class ChordNode:
 
         ChordNode.nodes.append(self)
 
-    def join(self):
-        """Thêm node vào vòng, cập nhật lại successor, predecessor và phân phối lại dữ liệu."""
-        ChordNode.rebuild_ring()
-        self.redistribute_data_on_join()
-
-    def leave(self):
-        """Node rời khỏi vòng, chuyển dữ liệu cho successor, cập nhật lại vòng."""
-        # Chuyển dữ liệu chính cho successor
-        for k, v in self.data.items():
-            self.successor.data[k] = v
-        # Chuyển replica cho successor kế tiếp
-        for k, v in self.replica.items():
-            self.successor.replica[k] = v
-        # Xóa node khỏi danh sách
-        ChordNode.nodes.remove(self)
-        ChordNode.rebuild_ring()
-        # Cập nhật lại backup cho các node còn lại
-        for node in ChordNode.nodes:
-            node.update_backup()
-
-    def redistribute_data_on_join(self):
-        """Khi node mới join, các node phải chuyển dữ liệu phù hợp cho node mới."""
-        for node in ChordNode.nodes:
-            if node == self:
-                continue
-            move_keys = []
-            for k in node.data:
-                key_id = get_hash(k)
-                owner = self.find_successor(key_id)
-                if owner == self:
-                    move_keys.append(k)
-            for k in move_keys:
-                self.data[k] = node.data.pop(k)
-        # Sau khi nhận dữ liệu, cập nhật lại backup cho các node
-        for node in ChordNode.nodes:
-            node.update_backup()
-
-    def update_backup(self):
-        """Cập nhật lại replica cho node kế tiếp."""
-        self.replica.clear()
-        for k, v in self.data.items():
-            backup = self.successor
-            if backup != self:
-                backup.replica[k] = v
-
+    
     def handle_failure(self):
         """Xử lý khi node này bị hỏng: chuyển dữ liệu và backup cho successor, cập nhật lại vòng."""
         # Chuyển dữ liệu chính cho successor
