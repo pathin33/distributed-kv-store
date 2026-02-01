@@ -64,8 +64,12 @@ class ChordNode:
         owner = self.find_successor(key_id)
 
         if owner["id"] == self.node_id:
+            # Kiểm tra key đã tồn tại chưa
+            if key in self.data:
+                print(f"Cập nhật {key} trong node hiện tại (value cũ: {self.data[key]} → mới: {value})")
+            else:
+                print(f"Thêm mới {key} vào node hiện tại")
             self.data[key] = value
-            print(f"Lưu {key} vào node hiện tại")
         else:
             print(f"Forward PUT {key} sang node {owner['id']}")
             try:
@@ -105,14 +109,21 @@ class ChordNode:
         key_id = get_hash(key)
         owner = self.find_successor(key_id)
         if owner["id"] == self.node_id:
-            # Xóa từ node hiện tại
-            self.data.pop(key, None)
-            print(f"Xóa {key} khỏi node hiện tại")
+            # Kiểm tra key có tồn tại không trước khi xóa
+            if key in self.data:
+                value = self.data.pop(key)
+                print(f"Xóa {key} (value: {value}) khỏi node hiện tại")
+                return True
+            else:
+                print(f"Key '{key}' không tồn tại trong node hiện tại")
+                return False
         else:
             print(f"Forward DELETE {key} sang node {owner['id']}")
             try:
                 stub = self._get_stub(owner)
                 response = stub.Delete(kvstore_pb2.DeleteRequest(key=key))
                 print(f"Forward thành công: {response.message}")
+                return response.success
             except Exception as e:
                 print(f"Lỗi khi forward DELETE: {e}")
+                return False

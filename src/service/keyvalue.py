@@ -22,22 +22,34 @@ class KeyValueServicer(kvstore_pb2_grpc.KeyValueServiceServicer):
                     message="Lấy dữ liệu thành công",
                     value=value
                 )
+            else:
+                return kvstore_pb2.GetResponse(
+                    success=False,
+                    message="Key không tồn tại",
+                    value=""
+                )
         else:
             return kvstore_pb2.GetResponse(
                 success=False,
-                message="Key không tồn tại",
+                message="Key không được để trống",
                 value=""
             )
     def Delete(self, request, context):
         if request.key is not None:
             #gọi hàm delete từ chordnode(file xử lí logic chính)
-            self.node.delete(request.key)
-            return kvstore_pb2.DeleteResponse(
-                success = True,
-                message = "Xóa thành công"
-            )   
+            success = self.node.delete(request.key)
+            if success:
+                return kvstore_pb2.DeleteResponse(
+                    success=True,
+                    message="Xóa thành công"
+                )
+            else:
+                return kvstore_pb2.DeleteResponse(
+                    success=False,
+                    message="Key không tồn tại"
+                )
         else:
             return kvstore_pb2.DeleteResponse(
-                success = False,
-                message = "Key không tồn tại"
+                success=False,
+                message="Key không được để trống"
             )
