@@ -17,6 +17,11 @@ python src/node.py --id 1
 ```
 python src/client.py
 ```
+# Cài đặt các gói cần thiết
+```
+pip install grpcio grpcio-tools
+pip install inquirer
+```
 ## Luồng hoạt động cơ bản của hệ thống
 ```
 Client gửi yêu cầu 
@@ -81,4 +86,19 @@ find_successor(key_id) (Tìm node chịu trách nhiệm)
      │<─────────────────────────────┤                              │
      │                              │                              │
      
+```
+
+## Sao lưu dữ liệu trên các node
+```
+BƯỚC 1: Client gửi PUT request
+  ↓
+BƯỚC 2: Node owner lưu vào self.data (bản chính)
+  ↓
+BƯỚC 3: Gọi _replicate_to_successor(key, value)
+  ↓
+BƯỚC 4: Tìm successor node (node kế tiếp trên vòng Chord)
+  ↓
+BƯỚC 5: Gửi gRPC request với is_replica=True
+  ↓
+BƯỚC 6: Successor nhận và lưu vào self.replica
 ```

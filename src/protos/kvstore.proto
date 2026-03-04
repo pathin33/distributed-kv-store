@@ -3,32 +3,50 @@ syntax = "proto3";
 message PutRequest {
   string key = 1;
   string value = 2;
-  bool is_replica = 3; //Trường đánh dấu xem dữ liệu có phải bản sao ko
+  bool is_replica = 3;      // Dữ liệu có phải bản sao không
+  int32 owner_node_id = 4;  // Node chủ sở hữu (chỉ dùng khi is_replica=True)
 }
 
 message PutResponse {
   bool success = 1;
   string message = 2;
-  
 }
-message GetRequest{
+
+message GetRequest {
     string key = 1;
 }
-message GetResponse{
+message GetResponse {
     bool success = 1;
     string message = 2;
     string value = 3;
 }
-message DeleteRequest{
+message DeleteRequest {
     string key = 1;
+    bool is_replica = 2; // Đánh dấu xem có phải xóa replica không
 }
-message DeleteResponse{
+message DeleteResponse {
     bool success = 1;
     string message = 2;
+}
+
+// Snapshot để node khôi phục dữ liệu sau khi restart
+message GetSnapshotRequest {
+    int32 requester_node_id = 1; // Node đang xin khôi phục dữ liệu
+}
+message GetSnapshotResponse {
+    map<string, string> data = 1; // Dữ liệu phân vùng của node đó
+}
+
+// Ping để kiểm tra sức khỏe node (heartbeat)
+message PingRequest {}
+message PingResponse {
+    bool alive = 1;
 }
 
 service KeyValueService {
   rpc Put (PutRequest) returns (PutResponse);
   rpc Get (GetRequest) returns (GetResponse);
   rpc Delete (DeleteRequest) returns (DeleteResponse);
+  rpc GetSnapshot (GetSnapshotRequest) returns (GetSnapshotResponse);
+  rpc Ping (PingRequest) returns (PingResponse);
 }

@@ -24,25 +24,37 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\rkvstore.proto\"<\n\nPutRequest\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t\x12\x12\n\nis_replica\x18\x03 \x01(\x08\"/\n\x0bPutResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\"\x19\n\nGetRequest\x12\x0b\n\x03key\x18\x01 \x01(\t\">\n\x0bGetResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\x12\r\n\x05value\x18\x03 \x01(\t\"\x1c\n\rDeleteRequest\x12\x0b\n\x03key\x18\x01 \x01(\t\"2\n\x0e\x44\x65leteResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t2\x80\x01\n\x0fKeyValueService\x12 \n\x03Put\x12\x0b.PutRequest\x1a\x0c.PutResponse\x12 \n\x03Get\x12\x0b.GetRequest\x1a\x0c.GetResponse\x12)\n\x06\x44\x65lete\x12\x0e.DeleteRequest\x1a\x0f.DeleteResponseb\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\rkvstore.proto\"S\n\nPutRequest\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t\x12\x12\n\nis_replica\x18\x03 \x01(\x08\x12\x15\n\rowner_node_id\x18\x04 \x01(\x05\"/\n\x0bPutResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\"\x19\n\nGetRequest\x12\x0b\n\x03key\x18\x01 \x01(\t\">\n\x0bGetResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\x12\r\n\x05value\x18\x03 \x01(\t\"0\n\rDeleteRequest\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nis_replica\x18\x02 \x01(\x08\"2\n\x0e\x44\x65leteResponse\x12\x0f\n\x07success\x18\x01 \x01(\x08\x12\x0f\n\x07message\x18\x02 \x01(\t\"/\n\x12GetSnapshotRequest\x12\x19\n\x11requester_node_id\x18\x01 \x01(\x05\"p\n\x13GetSnapshotResponse\x12,\n\x04\x64\x61ta\x18\x01 \x03(\x0b\x32\x1e.GetSnapshotResponse.DataEntry\x1a+\n\tDataEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\r\n\x0bPingRequest\"\x1d\n\x0cPingResponse\x12\r\n\x05\x61live\x18\x01 \x01(\x08\x32\xdf\x01\n\x0fKeyValueService\x12 \n\x03Put\x12\x0b.PutRequest\x1a\x0c.PutResponse\x12 \n\x03Get\x12\x0b.GetRequest\x1a\x0c.GetResponse\x12)\n\x06\x44\x65lete\x12\x0e.DeleteRequest\x1a\x0f.DeleteResponse\x12\x38\n\x0bGetSnapshot\x12\x13.GetSnapshotRequest\x1a\x14.GetSnapshotResponse\x12#\n\x04Ping\x12\x0c.PingRequest\x1a\r.PingResponseb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'kvstore_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
+  _globals['_GETSNAPSHOTRESPONSE_DATAENTRY']._loaded_options = None
+  _globals['_GETSNAPSHOTRESPONSE_DATAENTRY']._serialized_options = b'8\001'
   _globals['_PUTREQUEST']._serialized_start=17
-  _globals['_PUTREQUEST']._serialized_end=77
-  _globals['_PUTRESPONSE']._serialized_start=79
-  _globals['_PUTRESPONSE']._serialized_end=126
-  _globals['_GETREQUEST']._serialized_start=128
-  _globals['_GETREQUEST']._serialized_end=153
-  _globals['_GETRESPONSE']._serialized_start=155
-  _globals['_GETRESPONSE']._serialized_end=217
-  _globals['_DELETEREQUEST']._serialized_start=219
-  _globals['_DELETEREQUEST']._serialized_end=247
-  _globals['_DELETERESPONSE']._serialized_start=249
-  _globals['_DELETERESPONSE']._serialized_end=299
-  _globals['_KEYVALUESERVICE']._serialized_start=302
-  _globals['_KEYVALUESERVICE']._serialized_end=430
+  _globals['_PUTREQUEST']._serialized_end=100
+  _globals['_PUTRESPONSE']._serialized_start=102
+  _globals['_PUTRESPONSE']._serialized_end=149
+  _globals['_GETREQUEST']._serialized_start=151
+  _globals['_GETREQUEST']._serialized_end=176
+  _globals['_GETRESPONSE']._serialized_start=178
+  _globals['_GETRESPONSE']._serialized_end=240
+  _globals['_DELETEREQUEST']._serialized_start=242
+  _globals['_DELETEREQUEST']._serialized_end=290
+  _globals['_DELETERESPONSE']._serialized_start=292
+  _globals['_DELETERESPONSE']._serialized_end=342
+  _globals['_GETSNAPSHOTREQUEST']._serialized_start=344
+  _globals['_GETSNAPSHOTREQUEST']._serialized_end=391
+  _globals['_GETSNAPSHOTRESPONSE']._serialized_start=393
+  _globals['_GETSNAPSHOTRESPONSE']._serialized_end=505
+  _globals['_GETSNAPSHOTRESPONSE_DATAENTRY']._serialized_start=462
+  _globals['_GETSNAPSHOTRESPONSE_DATAENTRY']._serialized_end=505
+  _globals['_PINGREQUEST']._serialized_start=507
+  _globals['_PINGREQUEST']._serialized_end=520
+  _globals['_PINGRESPONSE']._serialized_start=522
+  _globals['_PINGRESPONSE']._serialized_end=551
+  _globals['_KEYVALUESERVICE']._serialized_start=554
+  _globals['_KEYVALUESERVICE']._serialized_end=777
 # @@protoc_insertion_point(module_scope)
