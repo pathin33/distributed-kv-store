@@ -7,22 +7,21 @@ import generated.kvstore_pb2_grpc as kvstore_pb2_grpc
 import threading
 import time
 
-M = 7          # key chay tu 0 den 2^M - 1
+M = 7                    # Số bit hash → vòng Chord có 2^7 = 128 vị trí
 RING_SIZE = 2 ** M
-GRPC_TIMEOUT = 2          # Timeout cho moi gRPC call (giay)
-HEARTBEAT_INTERVAL = 5    # Kiem tra heartbeat moi 5 giay
-MAX_RETRY_NODES = 3       # So node toi da thu khi forward
+GRPC_TIMEOUT = 2         # Timeout mỗi lần gọi gRPC (giây)
+HEARTBEAT_INTERVAL = 5   # Chu kỳ kiểm tra heartbeat (giây)
+MAX_RETRY_NODES = 3      # Số lần thử lại tối đa khi forward thất bại
 
 
 def get_hash(key):
+    """Tính hash SHA-1 của key rồi ánh xạ vào vòng Chord [0, 127]."""
     h = hashlib.sha1(key.encode()).hexdigest()
     return int(h, 16) % RING_SIZE
 
 
-#  Helper log: moi dong log deu bat dau bang tag
-#  [Node X | CATEGORY]  de de loc trong terminal
 def _tag(node_id, category):
-    """Tao prefix tag chuan: [Node X | CATEGORY]"""
+    """Tạo prefix log chuẩn: [Node X | CATEGORY ]"""
     return f"[Node {node_id} | {category:<9}]"
 
 
@@ -32,20 +31,21 @@ class ChordNode:
         self.node_id = node_id
         self.address = address
         self.all_nodes = all_nodes_config
-        self.id = get_hash(address)
+        self.id = get_hash(address)   # Vị trí của node trên vòng Chord
 
         self.successor = self
         self.predecessor = self
 
-        self.data = {}       # du lieu chinh ma node chiu trach nhiem
-        self.replica = {}    # ban sao backup (key -> (value, owner_id))
-        self.node_stubs = {} # cache stub {node_id: stub}
+        self.data = {}       # Dữ liệu chính node này sở hữu {key: value}
+        self.replica = {}    # Bản sao từ predecessor {key: (value, owner_id)}
+        self.node_stubs = {} # Cache gRPC stub {node_id: stub}
 
         self.failed_nodes = set()
         self.failed_nodes_lock = threading.Lock()
-    #  Internal helpers
+
 
     def _get_stub(self, node_info):
+        """Trả về gRPC stub của node, ưu tiên dùng cache."""
         node_id = node_info["id"]
         if node_id in self.node_stubs:
             return self.node_stubs[node_id]
@@ -55,11 +55,11 @@ class ChordNode:
         return stub
 
     def _log(self, category, msg):
-        """In mot dong log co dinh dang chuan"""
+        """In log có định dạng [Node X | CATEGORY] msg."""
         print(f"{_tag(self.node_id, category)} {msg}")
 
     def _print_storage_status(self):
-        """In bang trang thai data va replica sau moi thao tac"""
+        """In trạng thái data và replica hiện tại của node."""
         replica_display = {k: v for k, (v, _) in self.replica.items()}
         sep = "-" * 56
         print(f"\n  {sep}")
@@ -69,10 +69,10 @@ class ChordNode:
         print(f"  {'Replica (sao):':<18} {replica_display if replica_display else '(trong)'}")
         print(f"  {sep}\n")
 
-    #  Chord routing
+    #Định tuyến Chord
 
     def find_successor(self, key_id):
-        """Tim node chiu trach nhiem key_id (khong loc failed)."""
+        """Tìm node chịu trách nhiệm cho key_id (không lọc node lỗi)."""
         node_ids = sorted(
             [(get_hash(n["address"]), n) for n in self.all_nodes],
             key=lambda x: x[0]
@@ -80,10 +80,10 @@ class ChordNode:
         for node_hash, node_info in node_ids:
             if key_id <= node_hash:
                 return node_info
-        return node_ids[0][1]  # quay vong
-
+        return node_ids[0][1]  # Quay vòng
+    #Bỏ qua node khi node lỗi
     def find_successor_with_fallback(self, key_id, exclude_nodes=None):
-        """Tim successor bo qua cac node da failed hoac trong exclude_nodes."""
+        """Tìm successor, bỏ qua các node đã lỗi hoặc trong exclude_nodes."""
         if exclude_nodes is None:
             exclude_nodes = set()
 
@@ -105,9 +105,10 @@ class ChordNode:
                 return node_info
         return node_ids[0][1]
 
-    #  CRUD operations
+    #Các thao tác CRUD
 
     def put(self, key, value):
+        """Lưu key-value: xử lý local nếu là owner, ngược lại forward."""
         key_id = get_hash(key)
         owner = self.find_successor(key_id)
 
@@ -124,6 +125,7 @@ class ChordNode:
             self._forward_with_retry("PUT", key, value)
 
     def get(self, key):
+        """Lấy giá trị của key: đọc local nếu là owner, ngược lại forward."""
         key_id = get_hash(key)
         owner = self.find_successor(key_id)
 
@@ -140,6 +142,7 @@ class ChordNode:
             return self._forward_with_retry("GET", key)
 
     def delete(self, key):
+        """Xóa key: xóa local + replica nếu là owner, ngược lại forward."""
         key_id = get_hash(key)
         owner = self.find_successor(key_id)
 
@@ -158,9 +161,10 @@ class ChordNode:
             result = self._forward_with_retry("DELETE", key)
             return result is not None
 
-    #  Failure detection & marking
+    # Phát hiện node lỗi
 
     def _mark_node_as_failed(self, node_id):
+        """Thêm node_id vào failed_nodes và xóa stub cache của nó."""
         with self.failed_nodes_lock:
             if node_id not in self.failed_nodes:
                 self.failed_nodes.add(node_id)
@@ -168,18 +172,19 @@ class ChordNode:
                 self._invalidate_stub(node_id)
 
     def _invalidate_stub(self, node_id):
+        """Xóa stub cache của node để buộc tạo kết nối mới lần sau."""
         if node_id in self.node_stubs:
             del self.node_stubs[node_id]
             self._log("FAILOVER", f"Da xoa stub cache cua Node {node_id}")
 
     def _is_node_alive(self, node_info):
+        """Ping gRPC để kiểm tra node còn sống không; cập nhật failed_nodes."""
         node_id = node_info["id"]
         if node_id == self.node_id:
             return True
         try:
             stub = self._get_stub(node_info)
             stub.Ping(kvstore_pb2.PingRequest(), timeout=GRPC_TIMEOUT)
-            # Ping thanh cong: neu truoc do bi danh dau failed thi xoa di
             with self.failed_nodes_lock:
                 if node_id in self.failed_nodes:
                     self.failed_nodes.discard(node_id)
@@ -188,28 +193,26 @@ class ChordNode:
         except Exception:
             self._mark_node_as_failed(node_id)
             return False
-
-    #  Replication
-
+   #Gửi dữ liệu đến node tiếp theo để sao lưu
     def _replicate_to_successor(self, key, value):
+        """Gửi bản sao (is_replica=True) của key sang successor."""
         successor_node = self.find_successor_with_fallback(self.id + 1)
         if successor_node and successor_node["id"] != self.node_id:
             try:
                 stub = self._get_stub(successor_node)
                 stub.Put(
                     kvstore_pb2.PutRequest(
-                        key=key,
-                        value=value,
-                        is_replica=True,
-                        owner_node_id=self.node_id
+                        key=key, value=value,
+                        is_replica=True, owner_node_id=self.node_id
                     ),
                     timeout=GRPC_TIMEOUT
                 )
                 self._log("REPLICA", f"Sao chep '{key}' --> Node {successor_node['id']}")
             except Exception as e:
                 self._log("REPLICA", f"THAT BAI khi sao chep '{key}': {e}")
-
+    #Tìm dữ liệu bản sao và xóa nó
     def _delete_replica_from_successor(self, key):
+        """Yêu cầu successor xóa bản sao của key."""
         successor_node = self.find_successor_with_fallback(self.id + 1)
         if successor_node and successor_node["id"] != self.node_id:
             try:
@@ -222,8 +225,9 @@ class ChordNode:
             except Exception as e:
                 self._log("REPLICA", f"THAT BAI khi xoa replica '{key}': {e}")
 
+    #Gửi lại toàn bộ data chính dưới dạng replica tới node vừa phục hồi
     def _re_replicate_all_to(self, node_info):
-        """Gui lai toan bo data chinh duoi dang replica toi node vua phuc hoi."""
+        """Gửi lại toàn bộ data chính dưới dạng replica tới node vừa phục hồi."""
         if not self.data:
             return
         target_id = node_info["id"]
@@ -233,10 +237,8 @@ class ChordNode:
             for key, value in self.data.items():
                 stub.Put(
                     kvstore_pb2.PutRequest(
-                        key=key,
-                        value=value,
-                        is_replica=True,
-                        owner_node_id=self.node_id
+                        key=key, value=value,
+                        is_replica=True, owner_node_id=self.node_id
                     ),
                     timeout=GRPC_TIMEOUT
                 )
@@ -244,10 +246,10 @@ class ChordNode:
         except Exception as e:
             self._log("REPLICA", f"THAT BAI khi re-replicate --> Node {target_id}: {e}")
 
-    #  Promote replica -> primary
-
+    #Promote / Demote
+    #Khi node bị lỗi, node tiếp theo sẽ nhận dữ liệu bản sao của node lỗi thành dữ liệu chính
     def _promote_replica_to_primary(self):
-        """Promote replica cua cac node da chet thanh primary data."""
+        """Chuyển replica của node đã chết thành data chính để tiếp tục phục vụ."""
         if not self.replica:
             return
 
@@ -269,15 +271,13 @@ class ChordNode:
             self._print_storage_status()
 
     def _demote_promoted_data(self, node_info):
-        """Chuyen cac key da promote (tu node vua phuc hoi) tro lai thanh replica."""
+        """Trả lại quyền sở hữu data về node gốc vừa phục hồi (promoted → replica)."""
         recovered_id = node_info["id"]
         demoted = []
 
         for key, value in list(self.data.items()):
-            # Kiem tra xem key nay co thuc su thuoc ve node vua phuc hoi khong
             owner = self.find_successor(get_hash(key))
             if owner["id"] == recovered_id:
-                # Chuyen tu data (promoted) -> replica
                 self.replica[key] = (value, recovered_id)
                 del self.data[key]
                 demoted.append(key)
@@ -287,9 +287,13 @@ class ChordNode:
             self._log("FAILOVER", f"Da demote {len(demoted)} key, tra lai chu so huu Node {recovered_id}")
             self._print_storage_status()
 
-    #  Forward with retry
+    #Forward với retry
 
     def _forward_with_retry(self, operation, key, value=None, max_retries=MAX_RETRY_NODES):
+        """
+        Chuyển tiếp PUT/GET/DELETE đến đúng node, tự retry nếu node lỗi.
+        Nếu tất cả node đều lỗi, xử lý fallback ngay tại node hiện tại.
+        """
         key_id = get_hash(key)
         exclude_nodes = set()
 
@@ -300,7 +304,7 @@ class ChordNode:
                 self._log(operation, f"THAT BAI ({attempt+1} lan): khong con node nao xu ly '{key}'")
                 return None
 
-            # Xu ly local (node nay chinh la owner sau fallback)
+            # Fallback: chính node này là owner sau khi bỏ hết node lỗi
             if owner["id"] == self.node_id:
                 if operation == "PUT":
                     self._log("PUT", f"FALLBACK luu '{key}' tai chinh node nay")
@@ -352,15 +356,18 @@ class ChordNode:
                     return response
 
             except Exception as e:
+                # Node không phản hồi → đánh dấu lỗi, thử node tiếp theo
                 self._log(operation, f"LOI khi goi Node {owner['id']}: node co the da chet")
                 self._mark_node_as_failed(owner["id"])
                 exclude_nodes.add(owner["id"])
 
         self._log(operation, f"THAT BAI sau {max_retries} lan thu cho '{key}'")
         return None
-    #  Data recovery (khi node restart)
+
+    #Phục hồi dữ liệu yêu cầu tới node tiếp theo
 
     def recover_data_from_successor(self):
+        """Lấy lại dữ liệu từ successor khi node vừa khởi động lại sau sự cố."""
         sep = "=" * 56
         print(f"\n  {sep}")
         self._log("RECOVERY", f"Bat dau yeu cau khoi phuc du lieu...")
@@ -396,9 +403,56 @@ class ChordNode:
 
         print(f"  {sep}\n")
 
-    #  Heartbeat monitor
+    #Tìm successor mới và gửi lại toàn bộ data khi successor cũ vừa chết
+    def _re_replicate_to_new_successor(self, dead_node_id):
+        """Khi successor vừa chết, gửi lại toàn bộ data sang successor mới."""
+        if not self.data:
+            return
+        new_successor = self.find_successor_with_fallback(self.id + 1)
+        if not new_successor or new_successor["id"] == self.node_id:
+            return
+        self._log("REPLICA", f"Successor Node {dead_node_id} chet → re-replicate {len(self.data)} key --> Node {new_successor['id']}")
+        try:
+            stub = self._get_stub(new_successor)
+            for key, value in self.data.items():
+                stub.Put(
+                    kvstore_pb2.PutRequest(
+                        key=key, value=value,
+                        is_replica=True, owner_node_id=self.node_id
+                    ),
+                    timeout=GRPC_TIMEOUT
+                )
+                self._log("REPLICA", f"  Re-send '{key}' --> Node {new_successor['id']}")
+        except Exception as e:
+            self._log("REPLICA", f"THAT BAI khi re-replicate sang successor moi: {e}")
+
+    #Xóa replica khẩn cấp khỏi node đã tạm giữ sau khi successor gốc phục hồi
+    def _cleanup_emergency_replicas(self, recovered_node_info):
+        """Xóa các replica khẩn cấp đã gửi khi successor chết, nay successor đã phục hồi."""
+        if not self.data:
+            return
+        recovered_id = recovered_node_info["id"]
+        # Node đang giữ replica khẩn cấp là successor của recovered node
+        recovered_hash = get_hash(recovered_node_info["address"])
+        emergency_node = self.find_successor_with_fallback(recovered_hash + 1)
+        if not emergency_node or emergency_node["id"] == self.node_id or emergency_node["id"] == recovered_id:
+            return
+        self._log("REPLICA", f"Don dep replica khan cap tren Node {emergency_node['id']} (Node {recovered_id} da song lai)")
+        try:
+            stub = self._get_stub(emergency_node)
+            for key in list(self.data.keys()):
+                stub.Delete(
+                    kvstore_pb2.DeleteRequest(key=key, is_replica=True),
+                    timeout=GRPC_TIMEOUT
+                )
+                self._log("REPLICA", f"  Xoa replica khan cap '{key}' tren Node {emergency_node['id']}")
+        except Exception as e:
+            self._log("REPLICA", f"THAT BAI khi don dep replica khan cap: {e}")
+
+    #Heartbeat Monitor
 
     def start_heartbeat_monitor(self):
+        """Chạy background thread định kỳ kiểm tra node còn sống, tự xử lý failover."""
         def monitor():
             while True:
                 time.sleep(HEARTBEAT_INTERVAL)
@@ -419,24 +473,27 @@ class ChordNode:
                     if is_alive and not was_failed:
                         self._log("HEARTBEAT", f"Node {node_id}  [OK]  - dang hoat dong")
                     elif is_alive and was_failed:
+                        # Node vừa phục hồi → gửi lại replica + demote data đã promote + dọn replica khẩn cấp
                         self._log("HEARTBEAT", f"Node {node_id}  [ONLINE] - da phuc hoi!")
-                        # Neu node vua phuc hoi la successor cua minh:
-                        # 1. Gui lai replica de no khoi phuc vai tro luu replica
-                        # 2. Xoa zombie data (da duoc promote) khoi chinh minh
                         successor = self.find_successor_with_fallback(self.id + 1)
                         if successor and successor["id"] == node_id:
                             self._re_replicate_all_to(node_info)
+                            self._cleanup_emergency_replicas(node_info)
                         self._demote_promoted_data(node_info)
                     else:
                         self._log("HEARTBEAT", f"Node {node_id}  [DEAD]  - khong phan hoi")
+                        # Nếu node vừa mới chết (không phải đã chết từ trước)
+                        # và là successor của node hiện tại → re-replicate sang successor mới
+                        if not was_failed:
+                            normal_successor = self.find_successor(self.id + 1)
+                            if normal_successor["id"] == node_id:
+                                self._re_replicate_to_new_successor(node_id)
 
-                # Promote replica neu co node failed
+                # Promote replica của các node đang lỗi lên primary
                 if self.replica:
                     self._promote_replica_to_primary()
 
-                # In trang thai luu tru hien tai de de quan sat
                 self._print_storage_status()
-
                 print(f"  {sep}\n")
 
         heartbeat_thread = threading.Thread(target=monitor, daemon=True)

@@ -12,6 +12,7 @@ import generated.kvstore_pb2_grpc as kvstore_pb2_grpc
 from chord.chordnode import ChordNode
 
 def serve():
+    #đọc config
     parser = argparse.ArgumentParser(description="Start gRPC node")
     parser.add_argument("--id", type=int, required=True, help="Node ID (e.g. 1, 2, 3)")
     args = parser.parse_args()
@@ -30,6 +31,7 @@ def serve():
     )
 
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+    # Thêm servicer vào server
     kvstore_pb2_grpc.add_KeyValueServiceServicer_to_server(
         KeyValueServicer(chord_node),
         server

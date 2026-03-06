@@ -210,6 +210,8 @@ Sau khi chọn node, menu chính sẽ xuất hiện:
 
 > Client có thể kết nối tới bất kỳ node nào. Node đó sẽ tự động định tuyến request tới đúng node chịu trách nhiệm theo thuật toán Chord.
 
+> **Lưu ý:** Khi chọn node, client tự động **ping** để kiểm tra node còn sống không. Nếu node chết, sẽ thông báo và cho phép chọn lại — không thoát chương trình.
+
 ---
 
 ## 7. Kiến trúc hệ thống
@@ -287,6 +289,9 @@ BƯỚC 6: Successor nhận và lưu vào self.replica
 | **Replication** | Mỗi key được sao lưu sang successor node (`self.replica`) |
 | **Heartbeat Monitor** | Kiểm tra trạng thái các node mỗi 5 giây |
 | **Failover tự động** | Khi node lỗi, replica được promote lên thành primary |
+| **Emergency Re-replication** | Khi successor chết, tự động gửi replica sang successor mới để đảm bảo luôn có 2 bản |
+| **Replica Cleanup** | Khi node phục hồi, tự động xóa bản sao khẩn cấp và trả quyền sở hữu về đúng node |
 | **Data Recovery** | Khi node khởi động lại, tự động yêu cầu khôi phục dữ liệu từ successor |
 | **Retry & Forward** | Request được retry tối đa 3 lần, tự bỏ qua node đã lỗi |
+| **Client Ping Check** | Ping kiểm tra node trước khi kết nối, thông báo rõ nếu node chết |
 

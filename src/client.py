@@ -38,35 +38,49 @@ def show_menu():
     elif 'Thoát' in selected:
         return '0'
 
+NODE_ADDRESSES = {
+    1: "127.0.0.1:50051",
+    2: "127.0.0.1:50052",
+    3: "127.0.0.1:50053",
+}
+
+def ping_node(address):
+    """Trả về True nếu node tại address đang sống."""
+    try:
+        channel = grpc.insecure_channel(address)
+        stub = kvstore_pb2_grpc.KeyValueServiceStub(channel)
+        stub.Ping(kvstore_pb2.PingRequest(), timeout=2)
+        return True
+    except Exception:
+        return False
+
 def connect_to_node():
-    choices = [
-        'Node 1',
-        'Node 2',
-        'Node 3'
-    ]
-    
+    choices = ['Node 1', 'Node 2', 'Node 3']
+
     questions = [
         inquirer.List('node',
                      message="Thiết lập kết nối - Sử dụng ↑↓ để chọn, Enter để xác nhận",
                      choices=choices,
                      carousel=True)
     ]
-    
+
     answers = inquirer.prompt(questions)
-    if answers is None: 
+    if answers is None:
         return None, None
-    
+
     selected = answers['node']
-    
-    if 'Node 1' in selected:
-        print("Đã kết nối tới Node 1")
-        return "127.0.0.1:50051", 1
-    elif 'Node 2' in selected:
-        print("Đã kết nối tới Node 2")
-        return "127.0.0.1:50052", 2
-    elif 'Node 3' in selected:
-        print("Đã kết nối tới Node 3")
-        return "127.0.0.1:50053", 3
+    node_id = int(selected.split()[-1])   # "Node 2" → 2
+    address = NODE_ADDRESSES[node_id]
+
+    # Kiểm tra node còn sống không trước khi kết nối
+    print(f"Đang kiểm tra Node {node_id}...", end=" ", flush=True)
+    if ping_node(address):
+        print(f"✓ Node {node_id} đang hoạt động.")
+        return address, node_id
+    else:
+        print(f"✗ Node {node_id} không phản hồi (có thể đã chết)!")
+        print("Vui lòng chọn node khác hoặc thử lại sau.")
+        return None, None
 
 def put_operation(stub):
     # Thao tác put
@@ -127,14 +141,19 @@ def run():
     print("="*40)
     print("DISTRIBUTED KEY-VALUE STORE")
     print("="*40)
-    
-    # Kết nối ban đầu
-    target, node_id = connect_to_node()
-    
-    if target is None:  # User cancelled
-        print("\nĐã hủy. Tạm biệt!")
-        return
-    
+
+    # Lặp cho đến khi kết nối được node còn sống hoặc user chủ động thoát (Ctrl+C)
+    target, node_id = None, None
+    while target is None:
+        target, node_id = connect_to_node()
+        if target is None:
+            try:
+                retry = input("\nThử lại? (Enter = tiếp tục, Ctrl+C = thoát): ")
+            except KeyboardInterrupt:
+                print("\nTạm biệt!")
+                return
+
+
     try:
         # Mở kết nối và giữ channel mở trong suốt session
         channel = grpc.insecure_channel(target)
@@ -159,14 +178,13 @@ def run():
                     delete_operation(stub)
                 elif choice == '4':
                     # Chuyển node - đóng kết nối cũ và mở kết nối mới
-                    channel.close()
-                    target, node_id = connect_to_node()
-                    if target is None:  # User cancelled
-                        print("\nĐã hủy chuyển node.")
-                        # Reconnect to previous node
-                        channel = grpc.insecure_channel(target)
-                        stub = kvstore_pb2_grpc.KeyValueServiceStub(channel)
+                    new_target, new_node_id = connect_to_node()
+                    if new_target is None:
+                        # Node chết hoặc user huỷ → giữ nguyên kết nối cũ
+                        print(f"\nGiữ nguyên kết nối với Node {node_id}.")
                     else:
+                        channel.close()
+                        target, node_id = new_target, new_node_id
                         channel = grpc.insecure_channel(target)
                         stub = kvstore_pb2_grpc.KeyValueServiceStub(channel)
                 elif choice == '0':
